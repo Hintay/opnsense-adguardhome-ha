@@ -1,0 +1,28 @@
+<form>
+    <field>
+        <id>runtime.role</id>
+        <label>Role</label>
+        <type>info</type>
+    </field>
+    <field>
+        <id>runtime.local_address</id>
+        <label>Local address</label>
+        <type>info</type>
+    </field>
+    <field>
+        <id>runtime.peer_address</id>
+        <label>Peer address</label>
+        <type>info</type>
+    </field>
+    <field>
+        <id>runtime.port</id>
+        <label>Port</label>
+        <type>info</type>
+    </field>
+    <field>
+        <id>runtime.certificate</id>
+        <label>Synchronization certificate fingerprint</label>
+        <type>info</type>
+        <style>text-monospace</style>
+    </field>
+</form>

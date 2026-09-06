@@ -1,0 +1,26 @@
+<model>
+    <mount>//OPNsense/adguardhome/sync</mount>
+    <description>AdGuard Home synchronization settings</description>
+    <version>1.1.0</version>
+    <items>
+        <enabled type="BooleanField">
+            <default>0</default>
+            <Required>Y</Required>
+        </enabled>
+        <port type="IntegerField">
+            <default>9443</default>
+            <MinimumValue>1024</MinimumValue>
+            <MaximumValue>65535</MaximumValue>
+            <Required>Y</Required>
+        </port>
+        <secret type="TextField">
+            <MaximumLength>256</MaximumLength>
+            <AllowNewlines>N</AllowNewlines>
+        </secret>
+        <peer_fingerprint type="TextField">
+            <MaximumLength>95</MaximumLength>
+            <AllowSpaces>N</AllowSpaces>
+            <AllowNewlines>N</AllowNewlines>
+        </peer_fingerprint>
+    </items>
+</model>

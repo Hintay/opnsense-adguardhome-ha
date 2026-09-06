@@ -1,0 +1,2 @@
+adguardhome:/etc/rc.conf.d/adguardhome
+runtime.json:/usr/local/etc/adguardhome-ha/opnsense.json

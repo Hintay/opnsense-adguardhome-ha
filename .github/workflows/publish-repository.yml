@@ -1,0 +1,123 @@
+name: Publish OPNsense repository
+
+on:
+  workflow_call:
+  repository_dispatch:
+    types:
+      - adguardhome-published
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: opnsense-package-repository
+  cancel-in-progress: false
+
+jobs:
+  check:
+    runs-on: ubuntu-24.04
+    outputs:
+      ready: ${{ steps.releases.outputs.ready }}
+    env:
+      GH_TOKEN: ${{ secrets.PACKAGE_READ_TOKEN || github.token }}
+      RUNTIME_REPOSITORY: ${{ vars.ADGUARDHOME_PACKAGE_REPOSITORY }}
+    steps:
+      - name: Validate dispatch source
+        if: github.event_name == 'repository_dispatch'
+        env:
+          DISPATCH_SOURCE: ${{ github.event.client_payload.source }}
+        shell: bash
+        run: |
+          test -n "${RUNTIME_REPOSITORY}"
+          test "${DISPATCH_SOURCE}" = "${RUNTIME_REPOSITORY}"
+      - name: Check published packages
+        id: releases
+        shell: bash
+        run: |
+          test -n "${RUNTIME_REPOSITORY}"
+          if gh release view --repo "${RUNTIME_REPOSITORY}" >/dev/null 2>&1 && \
+             gh release view --repo "${GITHUB_REPOSITORY}" >/dev/null 2>&1
+          then
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  assemble:
+    needs: check
+    if: needs.check.outputs.ready == 'true'
+    runs-on: ubuntu-24.04
+    env:
+      GH_TOKEN: ${{ secrets.PACKAGE_READ_TOKEN || github.token }}
+      RUNTIME_REPOSITORY: ${{ vars.ADGUARDHOME_PACKAGE_REPOSITORY }}
+      SIGNING_KEY: ${{ secrets.PKG_REPOSITORY_SIGNING_KEY }}
+    steps:
+      - uses: actions/checkout@v7
+      - name: Prepare package repository website
+        shell: bash
+        run: |
+          mkdir -p public
+          cp site/index.html public/index.html
+      - name: Download published packages
+        shell: bash
+        run: |
+          test -n "${RUNTIME_REPOSITORY}"
+          mkdir -p 'public/FreeBSD:15:amd64/All'
+          gh release download --repo "${RUNTIME_REPOSITORY}" --pattern 'adguardhome-*.pkg' \
+            --dir 'public/FreeBSD:15:amd64/All'
+          gh release download --repo "${GITHUB_REPOSITORY}" --pattern 'os-adguardhome-ha-*.pkg' \
+            --dir 'public/FreeBSD:15:amd64/All'
+          test "$(find 'public/FreeBSD:15:amd64/All' -name 'adguardhome-*.pkg' | wc -l)" -eq 1
+          test "$(find 'public/FreeBSD:15:amd64/All' -name 'os-adguardhome-ha-*.pkg' | wc -l)" -eq 1
+          test -n "$(find 'public/FreeBSD:15:amd64/All' -name 'adguardhome-*.pkg' -print -quit)"
+          test -n "$(find 'public/FreeBSD:15:amd64/All' -name 'os-adguardhome-ha-*.pkg' -print -quit)"
+      - name: Prepare repository signing key
+        shell: bash
+        run: |
+          test -n "${SIGNING_KEY}"
+          umask 077
+          printf '%s\n' "${SIGNING_KEY}" > .pkg-signing-key
+      - name: Generate signed package repository on FreeBSD
+        uses: vmactions/freebsd-vm@v1
+        with:
+          release: "15.1"
+          usesh: true
+          run: |
+            repository="${GITHUB_WORKSPACE}/public/FreeBSD:15:amd64"
+            find "${repository}/All" -name '*.pkg' -exec pkg query -F '{}' '%n-%v' \;
+            cd "${repository}"
+            pkg repo "${repository}" "rsa:${GITHUB_WORKSPACE}/.pkg-signing-key"
+            openssl rsa -in "${GITHUB_WORKSPACE}/.pkg-signing-key" -pubout \
+              -out "${GITHUB_WORKSPACE}/public/adguardhome-ha.pub"
+      - name: Write repository configuration
+        shell: bash
+        run: |
+          repository_name="${GITHUB_REPOSITORY#*/}"
+          repository_url="https://${GITHUB_REPOSITORY_OWNER}.github.io/${repository_name}/\${ABI}"
+          cat > public/adguardhome-ha.conf <<EOF
+          adguardhome-ha: {
+            url: "${repository_url}",
+            mirror_type: "none",
+            signature_type: "pubkey",
+            pubkey: "/usr/local/etc/pkg/keys/adguardhome-ha.pub",
+            enabled: yes
+          }
+          EOF
+      - uses: actions/configure-pages@v6
+      - uses: actions/upload-pages-artifact@v5
+        with:
+          path: public
+
+  deploy:
+    needs: assemble
+    runs-on: ubuntu-24.04
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v5

@@ -1,0 +1,23 @@
+{
+    "general": {
+        "enabled": {{ "true" if helpers.exists('OPNsense.adguardhome.general.enabled') and OPNsense.adguardhome.general.enabled == '1' else "false" }},
+        "bind_hosts": {{ OPNsense.adguardhome.general.bind_hosts | default('') | tojson }},
+        "dns_port": {{ OPNsense.adguardhome.general.dns_port | default('53') | tojson }}
+    },
+    "sync": {
+        "enabled": {{ "true" if helpers.exists('OPNsense.adguardhome.sync.enabled') and OPNsense.adguardhome.sync.enabled == '1' else "false" }},
+        "port": {{ OPNsense.adguardhome.sync.port | default('9443') | tojson }},
+        "secret": {{ OPNsense.adguardhome.sync.secret | default('') | tojson }},
+        "peer_fingerprint": {{ OPNsense.adguardhome.sync.peer_fingerprint | default('') | tojson }},
+        "synchronization_target": {% if helpers.exists('hasync.synchronizetoip') %}{{ helpers.getNodeByTag('hasync.synchronizetoip') | default('') | tojson }}{% else %}""{% endif %}
+    },
+    "interfaces": [
+{% for interface_name, interface in interfaces.items() %}
+        {
+            "name": {{ interface_name | tojson }},
+            "device": {{ interface['if'] | default('') | tojson }},
+            "description": {{ interface.descr | default(interface_name | upper) | tojson }}
+        }{{ "," if not loop.last else "" }}
+{% endfor %}
+    ]
+}

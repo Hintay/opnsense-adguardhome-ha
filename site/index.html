@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>AdGuard Home High Availability for OPNsense</title>
+  <style>
+    :root {
+      color-scheme: light dark;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      line-height: 1.55;
+      --accent: #d94f00;
+      --border: #c8c8c8;
+      --surface: rgba(127, 127, 127, 0.08);
+    }
+
+    body {
+      margin: 0;
+      color: CanvasText;
+      background: Canvas;
+    }
+
+    main {
+      width: min(860px, calc(100% - 40px));
+      margin: 0 auto;
+      padding: 64px 0 80px;
+    }
+
+    h1 {
+      margin: 0 0 12px;
+      font-size: clamp(2rem, 6vw, 3.4rem);
+      line-height: 1.1;
+    }
+
+    h2 {
+      margin-top: 40px;
+      font-size: 1.35rem;
+    }
+
+    .lead {
+      max-width: 720px;
+      margin: 0;
+      font-size: 1.1rem;
+      color: color-mix(in srgb, CanvasText 72%, Canvas);
+    }
+
+    .notice {
+      margin-top: 28px;
+      padding: 16px 18px;
+      border-left: 4px solid var(--accent);
+      background: var(--surface);
+    }
+
+    pre {
+      overflow-x: auto;
+      padding: 18px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      background: var(--surface);
+    }
+
+    code {
+      font-family: ui-monospace, "SFMono-Regular", Consolas, monospace;
+      font-size: 0.92em;
+    }
+
+    a {
+      color: var(--accent);
+    }
+
+    ul {
+      padding-left: 22px;
+    }
+
+    footer {
+      margin-top: 48px;
+      padding-top: 20px;
+      border-top: 1px solid var(--border);
+      font-size: 0.9rem;
+      color: color-mix(in srgb, CanvasText 65%, Canvas);
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>AdGuard Home High Availability for OPNsense</h1>
+    <p class="lead">
+      A signed OPNsense package repository for AdGuard Home service integration
+      and authenticated configuration synchronization between high-availability nodes.
+    </p>
+
+    <div class="notice">
+      Current packages target OPNsense 26.7 on FreeBSD 15 amd64.
+    </div>
+
+    <h2>Install</h2>
+    <p>Run these commands in an OPNsense shell:</p>
+    <pre><code>install -d -m 0755 /usr/local/etc/pkg/keys
+fetch -o /usr/local/etc/pkg/keys/adguardhome-ha.pub \
+  https://hintay.github.io/opnsense-adguardhome-ha/adguardhome-ha.pub
+fetch -o /usr/local/etc/pkg/repos/adguardhome-ha.conf \
+  https://hintay.github.io/opnsense-adguardhome-ha/adguardhome-ha.conf
+pkg update -f
+pkg install os-adguardhome-ha</code></pre>
+
+    <p>
+      Refresh the OPNsense browser session, then open
+      <strong>Services &gt; AdGuard Home</strong>.
+    </p>
+
+    <h2>Packages</h2>
+    <ul>
+      <li><code>os-adguardhome-ha</code> provides the OPNsense interface, service integration, and synchronization.</li>
+      <li><code>adguardhome</code> provides the official AdGuard Home FreeBSD executable.</li>
+    </ul>
+
+    <h2>Documentation and source</h2>
+    <ul>
+      <li><a href="https://github.com/Hintay/opnsense-adguardhome-ha">Installation and configuration guide</a></li>
+      <li><a href="https://github.com/Hintay/opnsense-adguardhome-runtime">Runtime package source</a></li>
+    </ul>
+
+    <footer>
+      Independent community project. Not affiliated with or endorsed by Deciso
+      B.V. or AdGuard Software Ltd.
+    </footer>
+  </main>
+</body>
+</html>

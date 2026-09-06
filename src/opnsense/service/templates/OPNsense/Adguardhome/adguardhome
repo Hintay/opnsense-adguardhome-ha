@@ -1,0 +1,5 @@
+{% if helpers.exists('OPNsense.adguardhome.general.enabled') and OPNsense.adguardhome.general.enabled == '1' %}
+adguardhome_enable="YES"
+{% else %}
+adguardhome_enable="NO"
+{% endif %}

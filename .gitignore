@@ -1,0 +1,8 @@
+dist/
+upstream/
+__pycache__/
+*.py[cod]
+.DS_Store
+.idea/
+.vscode/
+.pkg-signing-key

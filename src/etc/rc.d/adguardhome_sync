@@ -1,0 +1,19 @@
+#!/bin/sh
+# PROVIDE: adguardhome_sync
+# REQUIRE: NETWORKING
+# KEYWORD: shutdown
+
+. /etc/rc.subr
+
+name="adguardhome_sync"
+rcvar="adguardhome_sync_enable"
+pidfile="/var/run/adguardhome-sync.pid"
+procname="/usr/sbin/daemon"
+command="/usr/sbin/daemon"
+command_args="-f -r -R 2 -P ${pidfile} -p /var/run/adguardhome-sync.child.pid /usr/local/bin/python3 /usr/local/opnsense/scripts/Adguardhome/syncd.py --run"
+load_rc_config "$name"
+: ${adguardhome_sync_enable:="NO"}
+extra_commands="sync"
+sync_cmd="/usr/local/opnsense/scripts/Adguardhome/sync_control.py sync"
+
+run_rc_command "$1"

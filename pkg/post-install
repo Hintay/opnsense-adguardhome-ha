@@ -1,0 +1,38 @@
+#!/bin/sh
+stop_legacy_sync() {
+    for pidfile in /var/run/adguard-home-sync.child.pid /var/run/adguard-home-sync.pid; do
+        if [ -r "${pidfile}" ]; then
+            pid="$(cat "${pidfile}")"
+            case "${pid}" in
+                *[!0-9]*|'') ;;
+                *) kill -TERM "${pid}" 2>/dev/null || true ;;
+            esac
+        fi
+    done
+    sleep 1
+    for pidfile in /var/run/adguard-home-sync.child.pid /var/run/adguard-home-sync.pid; do
+        if [ -r "${pidfile}" ]; then
+            pid="$(cat "${pidfile}")"
+            case "${pid}" in
+                *[!0-9]*|'') ;;
+                *) kill -KILL "${pid}" 2>/dev/null || true ;;
+            esac
+        fi
+    done
+}
+
+if [ -x /usr/local/etc/rc.d/adguard_home_sync ]; then
+    stop_legacy_sync
+    /usr/sbin/sysrc adguard_home_sync_enable=NO >/dev/null 2>&1 || true
+fi
+/usr/bin/install -d -m 0700 /usr/local/etc/adguardhome-ha
+/usr/bin/install -d -m 0700 /usr/local/AdGuardHome
+/bin/rm -f /usr/local/etc/adguardhome-opnsense.json
+/usr/local/opnsense/scripts/Adguardhome/migrate.php
+rm -f /var/lib/php/tmp/opnsense_menu_cache.xml /var/lib/php/tmp/opnsense_acl_cache.json
+rm -f /tmp/opnsense_menu_cache.xml /tmp/opnsense_acl_cache.json
+/usr/sbin/service configd restart
+/usr/local/sbin/configctl syslog restart
+/usr/local/sbin/configctl template reload OPNsense/Adguardhome >/dev/null 2>&1 || true
+/usr/local/sbin/configctl webgui restart >/dev/null 2>&1 || true
+exit 0

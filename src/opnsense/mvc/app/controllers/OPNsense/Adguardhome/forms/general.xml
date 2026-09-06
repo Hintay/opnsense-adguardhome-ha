@@ -1,0 +1,22 @@
+<form>
+    <field>
+        <id>general.enabled</id>
+        <label>Enable AdGuard Home</label>
+        <type>checkbox</type>
+        <help>Start AdGuard Home automatically and make the DNS service available.</help>
+    </field>
+    <field>
+        <id>general.bind_hosts</id>
+        <label>DNS listen addresses</label>
+        <type>select_multiple</type>
+        <style>tokenize</style>
+        <allownew>true</allownew>
+        <help>Select an available address or enter an IPv4 or IPv6 address.</help>
+    </field>
+    <field>
+        <id>general.dns_port</id>
+        <label>DNS listen port</label>
+        <type>text</type>
+        <help>DNS normally uses port 53.</help>
+    </field>
+</form>

@@ -1,0 +1,31 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+      - name: Test on FreeBSD
+        uses: vmactions/freebsd-vm@v1
+        with:
+          release: "15.1"
+          usesh: true
+          prepare: |
+            pkg install -y python313 libyaml
+            pkg add -A https://pkg.opnsense.org/FreeBSD:15:amd64/26.7/latest/Latest/py313-pyyaml.pkg
+          run: |
+            PYTHON=/usr/local/bin/python3.13
+            "${PYTHON}" tools/check_release.py
+            "${PYTHON}" tests/settings.py
+            "${PYTHON}" tests/dns_settings.py
+            "${PYTHON}" tests/syncd_e2e.py
+            "${PYTHON}" tests/build.py
+            "${PYTHON}" -m py_compile tools/*.py tests/*.py src/opnsense/scripts/Adguardhome/*.py

@@ -1,0 +1,9 @@
+<menu>
+  <Services>
+    <Adguardhome VisibleName="AdGuard Home" cssClass="fa fa-lock fa-fw">
+      <General VisibleName="Settings" url="/ui/adguardhome/general/index" order="10"/>
+      <Sync VisibleName="Synchronize Config" url="/ui/adguardhome/sync/index" order="20"/>
+      <LogFile VisibleName="Log File" url="/ui/diagnostics/log/core/adguardhome-sync" order="30"/>
+    </Adguardhome>
+  </Services>
+</menu>
