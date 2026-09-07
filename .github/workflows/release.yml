@@ -143,5 +143,10 @@ jobs:
   publish_repository:
     needs: release
     if: needs.release.outputs.published == 'true'
+    # A caller must grant at least the permissions the reusable workflow declares.
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
     uses: ./.github/workflows/publish-repository.yml
     secrets: inherit
