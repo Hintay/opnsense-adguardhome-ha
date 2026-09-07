@@ -1,6 +1,5 @@
 PLUGIN_NAME= adguardhome-ha
 PLUGIN_VERSION= 1.1
-PLUGIN_REVISION= 1
 PLUGIN_DEPENDS= adguardhome
 PLUGIN_CONFLICTS= adguardhome-maxit adguardhome
 PLUGIN_COMMENT= AdGuard Home with authenticated state-sync replication

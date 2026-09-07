@@ -60,7 +60,7 @@ def main():
             '--opnsense-version', '26.7',
             '--output', str(output),
         ], check=True)
-        package = output / 'os-adguardhome-ha-1.1_1.pkg'
+        package = output / 'os-adguardhome-ha-1.1.pkg'
         if not package.is_file():
             raise RuntimeError('The plugin package was not created.')
         manifest = json.loads(subprocess.check_output(['tar', '-xOf', str(package), '+COMPACT_MANIFEST'], text=True))
@@ -71,7 +71,7 @@ def main():
         annotations = manifest.get('annotations', {})
         if annotations.get('product_id') != 'os-adguardhome-ha':
             raise RuntimeError('The plugin package is missing its OPNsense product metadata.')
-        if annotations.get('product_version') != '1.1_1':
+        if annotations.get('product_version') != '1.1':
             raise RuntimeError('The plugin package has an unexpected OPNsense product version.')
         if 'os-adguardhome-maxit' not in annotations.get('product_conflicts', '').split():
             raise RuntimeError('The plugin package does not replace the previous AdGuard Home plugin.')
