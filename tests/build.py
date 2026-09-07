@@ -68,11 +68,20 @@ def main():
             raise RuntimeError('The plugin package has an unexpected project URL.')
         if 'conflicts' in manifest:
             raise RuntimeError('The plugin package contains unsupported conflict metadata.')
+        annotations = manifest.get('annotations', {})
+        if annotations.get('product_id') != 'os-adguardhome-ha':
+            raise RuntimeError('The plugin package is missing its OPNsense product metadata.')
+        if annotations.get('product_version') != '1.0':
+            raise RuntimeError('The plugin package has an unexpected OPNsense product version.')
+        if 'os-adguardhome-maxit' not in annotations.get('product_conflicts', '').split():
+            raise RuntimeError('The plugin package does not replace the previous AdGuard Home plugin.')
         contents = subprocess.check_output([PKG, 'info', '-lF', str(package)], text=True)
         if '/usr/local/bin/adguardhome' in contents or '/usr/local/AdGuardHome/AdGuardHome' in contents:
             raise RuntimeError('The plugin package contains an AdGuard Home executable.')
         if '/usr/local/opnsense/scripts/Adguardhome/dns_settings.py' not in contents:
             raise RuntimeError('The plugin package is missing its OPNsense integration.')
+        if '/usr/local/opnsense/version/adguardhome-ha' not in contents:
+            raise RuntimeError('The plugin package is missing its OPNsense product file.')
         if '/usr/local/share/licenses/os-adguardhome-ha/LICENSE' not in contents:
             raise RuntimeError('The plugin package is missing the BSD 2-Clause license.')
         dependencies = subprocess.check_output([PKG, 'info', '-dF', str(package)], text=True)

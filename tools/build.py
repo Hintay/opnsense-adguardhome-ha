@@ -46,6 +46,34 @@ def plugin_version():
     return version if revision in ('', '0') else '{}_{}'.format(version, revision)
 
 
+def plugin_hash():
+    try:
+        return output('git', '-C', str(ROOT), 'rev-parse', '--short=9', 'HEAD')
+    except (FileNotFoundError, subprocess.CalledProcessError):
+        return 'unknown'
+
+
+def version_metadata(opnsense_version):
+    return {
+        'product_abi': opnsense_version,
+        'product_arch': os.uname().machine,
+        'product_conflicts': ' '.join((
+            'os-adguardhome',
+            'os-adguardhome-devel',
+            'os-adguardhome-ha-devel',
+            'os-adguardhome-maxit',
+            'os-adguardhome-maxit-devel',
+        )),
+        'product_email': makefile_value('PLUGIN_MAINTAINER'),
+        'product_hash': plugin_hash(),
+        'product_id': PACKAGE_NAME,
+        'product_name': makefile_value('PLUGIN_NAME'),
+        'product_tier': '3',
+        'product_version': plugin_version(),
+        'product_website': makefile_value('PLUGIN_WWW'),
+    }
+
+
 def package_metadata(path):
     try:
         name, version, origin = output(PKG, 'query', '-F', str(path), '%n|%v|%o').split('|')
@@ -97,6 +125,10 @@ def main():
         license_path = prefix / 'share/licenses' / PACKAGE_NAME / 'LICENSE'
         license_path.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(ROOT / 'LICENSE', license_path)
+        metadata = version_metadata(args.opnsense_version or output('opnsense-version', '-a'))
+        version_path = prefix / 'opnsense/version/adguardhome-ha'
+        version_path.parent.mkdir(parents=True, exist_ok=True)
+        version_path.write_text(json.dumps(metadata, indent=4, sort_keys=True) + '\n', encoding='utf-8')
         dependencies = {}
         package_binary = output(PKG, 'which', '-q', str(Path(sys.executable).resolve()))
         yaml_module = output(sys.executable, '-c', 'import yaml; print(yaml.__file__)')
@@ -129,6 +161,7 @@ def main():
             'abi': output(PKG, 'config', 'ABI'),
             'licenses': ['BSD2CLAUSE'],
             'licenselogic': 'single',
+            'annotations': metadata,
             'deps': dependencies,
             'files': collect_files(prefix, stage),
             'scripts': scripts,
