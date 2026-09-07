@@ -15,6 +15,20 @@ class GeneralController extends ApiMutableModelControllerBase
     protected static $internalModelClass = '\OPNsense\Adguardhome\General';
     protected static $internalModelName = 'general';
 
+    /**
+     * Report configuration warnings for the settings page (for example a
+     * system resolver that points to a loopback address nobody serves).
+     */
+    public function warningsAction()
+    {
+        try {
+            $settings = json_decode((new Backend())->configdRun('adguardhome dns_get'), true);
+        } catch (\Throwable $error) {
+            return ['status' => 'failed', 'warnings' => []];
+        }
+        return ['status' => 'ok', 'warnings' => is_array($settings['warnings'] ?? null) ? $settings['warnings'] : []];
+    }
+
     protected function getModelNodes()
     {
         $nodes = parent::getModelNodes();

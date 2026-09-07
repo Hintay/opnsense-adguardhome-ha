@@ -34,7 +34,7 @@ class ServiceController extends ApiMutableServiceControllerBase
             if ($result['status'] === 'updated' && ($result['synchronization_role'] ?? '') === 'source') {
                 $backend->configdRun('adguardhomesync sync');
             }
-            return ['status' => 'ok', 'result' => $result['status']];
+            return ['status' => 'ok', 'result' => $result['status'], 'warnings' => $result['warnings'] ?? []];
         } catch (\Throwable $error) {
             return ['status' => 'failed', 'message' => gettext('Backend unavailable.')];
         }

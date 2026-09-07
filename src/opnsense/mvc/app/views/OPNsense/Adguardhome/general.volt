@@ -4,6 +4,7 @@
  #}
 
 <div class="content-box" style="padding-bottom: 1.5em;">
+    <div id="dnsWarnings" class="alert alert-warning" style="display:none; margin: 1em;"></div>
     {{ partial("layout_partials/base_form",['fields':generalForm,'id':'frm_general_settings'])}}
     <div class="col-md-12">
         <hr />
@@ -13,10 +14,25 @@
 
 <script>
     $(function() {
+        const warningText = {{ t|json_encode }};
+        function showWarnings(warnings) {
+            const box = $('#dnsWarnings');
+            if (!warnings || !warnings.length) { box.hide().empty(); return; }
+            box.empty();
+            warnings.forEach(function(item) {
+                const text = warningText['warning_' + item.code] || item.message;
+                box.append($('<div/>').text(text));
+            });
+            box.show();
+        }
+        function refreshWarnings() {
+            ajaxGet('/api/adguardhome/general/warnings', {}, function(data) { showWarnings(data.warnings); });
+        }
         var data_get_map = {'frm_general_settings':"/api/adguardhome/general/get"};
         mapDataToFormUI(data_get_map).done(function(data){
             formatTokenizersUI();
             $('.selectpicker').selectpicker('refresh');
+            refreshWarnings();
         });
 
     updateServiceControlUI('adguardhome');
@@ -26,6 +42,7 @@
             $("#saveAct_progress").addClass("fa fa-spinner fa-pulse");
                 ajaxCall(url="/api/adguardhome/service/reconfigure", sendData={}, callback=function(data,status) {
                     updateServiceControlUI('adguardhome');
+                    showWarnings(data && data.warnings ? data.warnings : []);
                     $("#saveAct_progress").removeClass("fa fa-spinner fa-pulse");
                 });
             });

@@ -32,6 +32,8 @@ ADGUARD_BINARY = Path('/usr/local/bin/adguardhome')
 BACKUP_CONFIG = ADGUARD_HOME / 'AdGuardHome.yaml.before-opnsense'
 SYNC_SETTINGS = Path('/usr/local/etc/adguardhome-sync.json')
 LOCK_PATH = Path('/var/run/adguardhome-sync.lock')
+RESOLV_CONF = Path('/etc/resolv.conf')
+LOOPBACK_HOSTS = ('127.0.0.1', '::1', '0.0.0.0', '::')
 PID_PATH = Path('/var/run/adguardhome.pid')
 PROBE_HOSTS = {'0.0.0.0': '127.0.0.1', '::': '::1'}
 
@@ -345,6 +347,41 @@ def apply_unlocked():
             candidate.unlink(missing_ok=True)
 
 
+def system_resolver_uses_loopback():
+    try:
+        text = RESOLV_CONF.read_text(encoding='utf-8')
+    except (OSError, UnicodeError):
+        return False
+    for line in text.splitlines():
+        fields = line.split()
+        if len(fields) >= 2 and fields[0] == 'nameserver' and fields[1].split('%', 1)[0] in ('127.0.0.1', '::1'):
+            return True
+    return False
+
+
+def resolver_warnings(hosts, port):
+    """Warn when this node's own resolver points at a loopback nobody serves.
+
+    OPNsense writes nameserver 127.0.0.1 unless told otherwise, expecting a
+    local resolver.  With Unbound and Dnsmasq stopped and AdGuard Home bound
+    only to CARP addresses, the backup node cannot resolve anything at all.
+    The check stays quiet when another service listens on the loopback.
+    """
+    if not system_resolver_uses_loopback():
+        return []
+    if any(str(host) in LOOPBACK_HOSTS for host in hosts) and int(port) == 53:
+        return []
+    listeners = agh_api.local_listeners(53)
+    if listeners is None or agh_api.host_served('127.0.0.1', listeners):
+        return []
+    return [{
+        'code': 'resolver_loopback',
+        'message': ('The system resolver (/etc/resolv.conf) points to 127.0.0.1, but no DNS service listens '
+                    'there. Add 127.0.0.1 and ::1 to the DNS listen addresses with port 53, or configure DNS '
+                    'servers under System > Settings > General and disable the local DNS service there.'),
+    }]
+
+
 def apply():
     LOCK_PATH.parent.mkdir(mode=0o755, parents=True, exist_ok=True)
     with LOCK_PATH.open('w') as stream:
@@ -353,15 +390,18 @@ def apply():
         except BlockingIOError as error:
             raise RuntimeError('Another configuration operation is already running.') from error
         result = apply_unlocked()
+    _, live = read_yaml()
     return {
         'status': result,
         'synchronization_role': synchronization_role(),
+        'warnings': resolver_warnings(live['bind_hosts'], live['port']),
     }
 
 
 def get_settings():
     _, settings = read_yaml()
-    return {'status': 'ok', **settings, 'available_hosts': available_addresses()}
+    return {'status': 'ok', **settings, 'available_hosts': available_addresses(),
+            'warnings': resolver_warnings(settings['bind_hosts'], settings['port'])}
 
 
 def main():

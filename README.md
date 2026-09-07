@@ -112,6 +112,8 @@ Open **Services > AdGuard Home > Settings** on each node.
 
 For DNS failover, select the same shared CARP IPv4 and IPv6 addresses on both nodes. CARP controls which node owns the addresses, while AdGuard Home can remain running on both nodes.
 
+Also include `127.0.0.1` and `::1` when AdGuard Home is the only DNS service on the node. OPNsense points the system resolver at `127.0.0.1` by default; a node whose AdGuard Home listens only on CARP addresses cannot resolve names for itself while it is the CARP backup, which silently breaks package updates, NTP and remote logging there. The settings page shows a warning when it detects this. Leave the loopback addresses out only when another local resolver such as Unbound serves them, in which case AdGuard Home must use a different port or address anyway.
+
 Only one DNS service can use an address and port combination. Stop Unbound DNS or Dnsmasq, or configure it to use different addresses or ports.
 
 ## Configuration synchronization

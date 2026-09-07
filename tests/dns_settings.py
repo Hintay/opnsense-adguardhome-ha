@@ -122,6 +122,27 @@ def check_failed_apply(module, state):
     state['starts'] = True
 
 
+def check_resolver_warnings(module, directory):
+    resolv = directory / 'resolv.conf'
+    module.RESOLV_CONF = resolv
+    resolv.write_text('nameserver 127.0.0.1\n', encoding='utf-8')
+    original = module.agh_api.local_listeners
+    try:
+        module.agh_api.local_listeners = lambda port: {'192.0.2.8'}
+        assert module.resolver_warnings(['192.0.2.8'], 53)[0]['code'] == 'resolver_loopback'
+        assert module.resolver_warnings(['192.0.2.8', '127.0.0.1'], 53) == []      # loopback bound
+        assert module.resolver_warnings(['0.0.0.0'], 53) == []                    # wildcard bound
+        module.agh_api.local_listeners = lambda port: {'127.0.0.1'}
+        assert module.resolver_warnings(['192.0.2.8'], 53) == []                  # Unbound serves it
+        module.agh_api.local_listeners = lambda port: None
+        assert module.resolver_warnings(['192.0.2.8'], 53) == []                  # no sockstat: stay quiet
+        resolv.write_text('nameserver 192.0.2.53\n', encoding='utf-8')
+        module.agh_api.local_listeners = lambda port: set()
+        assert module.resolver_warnings(['192.0.2.8'], 53) == []                  # resolver not on loopback
+    finally:
+        module.agh_api.local_listeners = original
+
+
 def main():
     module = load_module()
     with tempfile.TemporaryDirectory(prefix='adguardhome-dns-settings-') as temporary:
@@ -131,6 +152,7 @@ def main():
         module.ADGUARD_BINARY = directory / 'adguardhome'
         module.BACKUP_CONFIG = directory / 'AdGuardHome.yaml.before-opnsense'
         module.MODEL_SETTINGS_PATH = directory / 'opnsense.json'
+        module.RESOLV_CONF = directory / 'resolv.conf'  # absent until the resolver check writes it
         module.PID_PATH = directory / 'adguardhome.pid'
         with contextlib.closing(socket.socket(socket.AF_INET, socket.SOCK_STREAM)) as listener:
             listener.bind(('127.0.0.1', 0))
@@ -158,6 +180,7 @@ def main():
             module.wait_until_running = lambda timeout=1: module.is_running()
             check_is_running(module)
             check_wait_serving(module, port)
+            check_resolver_warnings(module, directory)
             check_reconcile_service(module, state)
             check_failed_start(module, state)
             assert module.interface_labels() == {'vtnet0': 'LAN'}
@@ -167,6 +190,7 @@ def main():
                 'bind_hosts': ['192.0.2.1'],
                 'port': 53,
                 'available_hosts': {'192.0.2.1': '192.0.2.1 (LAN)'},
+                'warnings': [],
             }
             assert module.apply_unlocked() == 'updated'
             updated = yaml.safe_load(module.ADGUARD_CONFIG.read_text(encoding='utf-8'))
