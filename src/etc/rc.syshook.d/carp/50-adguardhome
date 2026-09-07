@@ -1,0 +1,43 @@
+#!/bin/sh
+#
+# CARP state hook for AdGuard Home high availability.
+#
+# $1 is "<vhid>@<interface>" and $2 is MASTER, BACKUP or INIT.  A configuration
+# received while this node owned the CARP address is staged instead of being
+# applied, so install it as soon as the node leaves the master role.  A role
+# change also decides which node wins a configuration conflict, so the source
+# reconciles with its peer right away instead of waiting for the hourly cycle.
+
+settings=/usr/local/etc/adguardhome-sync.json
+
+if [ "$2" != "MASTER" ] && [ "$2" != "BACKUP" ]; then
+	exit 0
+fi
+
+if [ "$2" = "BACKUP" ] && [ -f /usr/local/AdGuardHome/AdGuardHome.yaml.pending ]; then
+	result=$(/usr/local/sbin/configctl adguardhomesync apply_pending 2>&1)
+	/usr/bin/logger -t adguardhome-sync -p daemon.notice \
+		"CARP $1 became BACKUP; pending configuration: ${result}"
+fi
+
+if [ "$2" = "BACKUP" ]; then
+	# A managed API account that was deferred while this node was master can be
+	# installed now; the restart is invisible without clients.
+	result=$(/usr/local/sbin/configctl adguardhomesync ensure_account 2>&1)
+	case "${result}" in
+		*'"status":"unchanged"'*|*'"status":"deferred"'*) ;;
+		*) /usr/bin/logger -t adguardhome-sync -p daemon.notice "CARP $1 became BACKUP; managed API account: ${result}" ;;
+	esac
+fi
+
+role=$(/usr/local/bin/python3 -c 'import json;d=json.load(open("'"${settings}"'"));print((d.get("role") or "") if d.get("enabled") else "")' 2>/dev/null)
+
+if [ "${role}" = "source" ]; then
+	# Reconciling reads the peer configuration and can restart AdGuard Home,
+	# so it must not hold up the CARP hook.
+	/usr/local/sbin/configctl adguardhomesync sync >/dev/null 2>&1 &
+	/usr/bin/logger -t adguardhome-sync -p daemon.notice \
+		"CARP $1 became $2; reconciling the AdGuard Home configuration with the peer."
+fi
+
+exit 0

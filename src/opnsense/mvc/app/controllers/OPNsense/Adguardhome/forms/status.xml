@@ -25,4 +25,40 @@
         <type>info</type>
         <style>text-monospace</style>
     </field>
+    <field>
+        <id>runtime.learned_fingerprint</id>
+        <label>Learned peer fingerprint</label>
+        <type>info</type>
+        <style>text-monospace</style>
+    </field>
+    <field>
+        <id>runtime.mode</id>
+        <label>Update mode</label>
+        <type>info</type>
+    </field>
+    <field>
+        <id>runtime.last_result</id>
+        <label>Last synchronization result</label>
+        <type>info</type>
+    </field>
+    <field>
+        <id>runtime.pending</id>
+        <label>Pending configuration</label>
+        <type>info</type>
+    </field>
+    <field>
+        <id>runtime.adopted</id>
+        <label>Receiver changes merged back</label>
+        <type>info</type>
+    </field>
+    <field>
+        <id>runtime.conflict</id>
+        <label>Last conflict</label>
+        <type>info</type>
+    </field>
+    <field>
+        <id>runtime.overwritten</id>
+        <label>Local changes replaced</label>
+        <type>info</type>
+    </field>
 </form>

@@ -35,6 +35,19 @@ class SyncServiceController extends ApiControllerBase
                 'port' => $result['port'] ?? '',
                 'certificate' => $result['certificate_fingerprint'] ?? '',
                 'secret_configured' => !empty($result['secret_configured']),
+                'pending_config' => !empty($result['pending_config']),
+                'learned_fingerprint' => $result['learned_fingerprint'] ?? '',
+                'api_configured' => !empty($result['api_configured']),
+                'api_message' => $result['api_message'] ?? '',
+                'base_present' => !empty($result['base_present']),
+                'peer_carp_master' => $result['peer_carp_master'] ?? null,
+                'last_adopted' => is_array($result['last_adopted'] ?? null) ? $result['last_adopted'] : null,
+                'last_conflict' => is_array($result['last_conflict'] ?? null) ? $result['last_conflict'] : null,
+                'last_overwritten' => is_array($result['last_overwritten'] ?? null) ? $result['last_overwritten'] : null,
+                'api_mode' => $result['api_mode'] ?? '',
+                'api_account_state' => $result['api_account_state'] ?? '',
+                'last_result' => $result['last_result'] ?? '',
+                'last_error' => $result['last_error'] ?? '',
             ],
             'message' => $result['message'] ?? '',
         ];
@@ -62,6 +75,19 @@ class SyncServiceController extends ApiControllerBase
         }
         $result = $this->invoke('sync');
         if (in_array($result['status'] ?? '', ['updated', 'unchanged'], true)) {
+            return ['status' => 'ok', 'result' => $result['status']];
+        }
+        return $result;
+    }
+
+    public function applyPendingAction()
+    {
+        $this->throwReadOnly();
+        if (!$this->request->isPost()) {
+            return ['status' => 'failed'];
+        }
+        $result = $this->invoke('apply_pending');
+        if (in_array($result['status'] ?? '', ['updated', 'unchanged', 'hot', 'staged'], true)) {
             return ['status' => 'ok', 'result' => $result['status']];
         }
         return $result;

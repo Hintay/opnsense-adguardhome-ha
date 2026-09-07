@@ -27,11 +27,18 @@ python3 tools/build.py \
   --opnsense-version 26.7
 python3 tests/settings.py
 python3 tests/dns_settings.py
+python3 tests/merge.py
+python3 tests/api_account.py
+python3 tests/agh_api.py
+python3 tests/syncd_receiver.py
 python3 tests/syncd_e2e.py
 python3 tests/build.py
+ADGUARDHOME_BIN=/path/to/adguardhome python3 tests/agh_contract.py
 ```
 
-Run the build and tests on the FreeBSD release used by the target OPNsense version. Build output is written to `dist/` and is not committed.
+`tests/agh_contract.py` starts the given AdGuard Home executable on loopback high ports and requires every setting that the API hot-update mapping in `src/opnsense/scripts/Adguardhome/agh_api.py` knows to converge through the API. It is skipped when `ADGUARDHOME_BIN` is unset and runs in the release workflow against the runtime package being published, so a new AdGuard Home release that renames an API field or changes a value notation fails the release instead of silently falling back to file replacement on installed systems.
+
+Run the build and tests on the FreeBSD release used by the target OPNsense version. Build output is written to `dist/` and is not committed. The Python tests also run on macOS or Linux with PyYAML installed.
 
 ## Versions
 

@@ -37,12 +37,24 @@ function adguardhome_services()
                 'start' => array('adguardhomesync start'),
                 'stop' => array('adguardhomesync stop'),
             ),
-            'name' => 'AdGuard Home synchronization',
+            'name' => 'adguardhome_sync',
             'pidfile' => '/var/run/adguardhome-sync.pid',
         );
     }
 
     return $services;
+}
+
+function adguardhome_xmlrpc_sync()
+{
+    $result = [];
+    $result[] = [
+        'description' => gettext('AdGuard Home synchronization settings'),
+        'section' => 'OPNsense.adguardhome.sync',
+        'id' => 'adguardhome',
+        'services' => ['adguardhome_sync'],
+    ];
+    return $result;
 }
 
 function adguardhome_syslog()

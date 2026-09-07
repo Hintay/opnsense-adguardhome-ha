@@ -21,6 +21,30 @@
         <id>sync.peer_fingerprint</id>
         <label>Peer certificate fingerprint</label>
         <type>text</type>
-        <help>On the source node, paste the fingerprint shown by the receiver.</help>
+        <help>Optional on the source node. Leave empty to learn and remember the receiver fingerprint automatically, or paste the fingerprint shown by the receiver.</help>
+    </field>
+    <field>
+        <id>sync.api_username</id>
+        <label>AdGuard Home API user</label>
+        <type>text</type>
+        <help>Optional. Leave empty to let the plugin manage a dedicated 'opnsense-ha' administrator derived from the pairing secret. Enter a user here to use your own credentials instead.</help>
+    </field>
+    <field>
+        <id>sync.api_password</id>
+        <label>AdGuard Home API password</label>
+        <type>password</type>
+        <help>Never shown after saving; leave empty to keep the current password.</help>
+    </field>
+    <field>
+        <id>sync.hot_update</id>
+        <label>Apply changes through the AdGuard Home API</label>
+        <type>checkbox</type>
+        <help>Apply synchronized changes without restarting AdGuard Home whenever the local API supports them. Uses the managed opnsense-ha account unless credentials are entered above.</help>
+    </field>
+    <field>
+        <id>sync.defer_while_master</id>
+        <label>Defer restarts while CARP master</label>
+        <type>checkbox</type>
+        <help>If a change requires restarting AdGuard Home and this node currently owns the DNS CARP address, stage the change and apply it when the node becomes backup or when Apply pending is selected.</help>
     </field>
 </form>

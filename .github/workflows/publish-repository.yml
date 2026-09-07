@@ -55,7 +55,7 @@ jobs:
       RUNTIME_REPOSITORY: ${{ vars.ADGUARDHOME_PACKAGE_REPOSITORY }}
       SIGNING_KEY: ${{ secrets.PKG_REPOSITORY_SIGNING_KEY }}
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - name: Prepare package repository website
         shell: bash
         run: |
@@ -81,7 +81,7 @@ jobs:
           umask 077
           printf '%s\n' "${SIGNING_KEY}" > .pkg-signing-key
       - name: Generate signed package repository on FreeBSD
-        uses: vmactions/freebsd-vm@v1
+        uses: vmactions/freebsd-vm@f0552d3b69211736abd97f02ff3d4674c56b73b1 # v1
         with:
           release: "15.1"
           usesh: true
@@ -92,6 +92,12 @@ jobs:
             pkg repo "${repository}" "rsa:${GITHUB_WORKSPACE}/.pkg-signing-key"
             openssl rsa -in "${GITHUB_WORKSPACE}/.pkg-signing-key" -pubout \
               -out "${GITHUB_WORKSPACE}/public/adguardhome-ha.pub"
+      - name: Remove repository signing key
+        if: always()
+        shell: bash
+        run: |
+          # The key only needs to exist for the pkg repo step above; do not leave it in the workspace.
+          rm -P -f "${GITHUB_WORKSPACE}/.pkg-signing-key" 2>/dev/null || shred -u "${GITHUB_WORKSPACE}/.pkg-signing-key" 2>/dev/null || rm -f "${GITHUB_WORKSPACE}/.pkg-signing-key"
       - name: Write repository configuration
         shell: bash
         run: |
@@ -106,8 +112,8 @@ jobs:
             enabled: yes
           }
           EOF
-      - uses: actions/configure-pages@v6
-      - uses: actions/upload-pages-artifact@v5
+      - uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6
+      - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5
         with:
           path: public
 
@@ -120,4 +126,4 @@ jobs:
     steps:
       - name: Deploy GitHub Pages
         id: deployment
-        uses: actions/deploy-pages@v5
+        uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5

@@ -12,9 +12,7 @@ on:
         type: string
 
 permissions:
-  contents: write
-  pages: write
-  id-token: write
+  contents: read
 
 concurrency:
   group: plugin-release-${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
@@ -49,7 +47,7 @@ jobs:
       RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
       RUNTIME_REPOSITORY: ${{ vars.ADGUARDHOME_PACKAGE_REPOSITORY }}
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           ref: ${{ env.RELEASE_TAG }}
       - name: Download current runtime package
@@ -60,7 +58,7 @@ jobs:
           gh release download --repo "${RUNTIME_REPOSITORY}" --pattern 'adguardhome-*.pkg' --dir dependency
           test "$(find dependency -maxdepth 1 -name 'adguardhome-*.pkg' | wc -l)" -eq 1
       - name: Build on FreeBSD
-        uses: vmactions/freebsd-vm@v1
+        uses: vmactions/freebsd-vm@f0552d3b69211736abd97f02ff3d4674c56b73b1 # v1
         with:
           release: "15.1"
           usesh: true
@@ -78,8 +76,19 @@ jobs:
               --output dist-release
             "${PYTHON}" tests/settings.py
             "${PYTHON}" tests/dns_settings.py
+            "${PYTHON}" tests/merge.py
+            "${PYTHON}" tests/api_account.py
+            "${PYTHON}" tests/agh_api.py
+            "${PYTHON}" tests/syncd_receiver.py
             "${PYTHON}" tests/syncd_e2e.py
             "${PYTHON}" tests/build.py
+            # Contract test: drive the exact AdGuard Home build we are about to publish
+            # through the API hot-update mapping and require every mapped key to converge.
+            mkdir -p runtime-root
+            tar -xf "${dependency_package}" -C runtime-root
+            ADGUARDHOME_BIN="$(find runtime-root -type f -name adguardhome -perm -u+x | head -1)"
+            test -n "${ADGUARDHOME_BIN}"
+            ADGUARDHOME_BIN="${ADGUARDHOME_BIN}" "${PYTHON}" tests/agh_contract.py
             cd dist-release
             set -- os-adguardhome-ha-*.pkg
             test "$#" -eq 1
@@ -91,7 +100,7 @@ jobs:
             do
               openssl dgst "-${METHOD}" "${FILE}" | sed 's/([^)]*)//g' >> "${DGST}"
             done
-      - uses: actions/upload-artifact@v7
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: os-adguardhome-ha
           path: |
@@ -102,13 +111,15 @@ jobs:
   release:
     needs: build
     runs-on: ubuntu-24.04
+    permissions:
+      contents: write
     outputs:
       published: ${{ steps.release.outputs.published }}
     env:
       GH_TOKEN: ${{ github.token }}
       RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
     steps:
-      - uses: actions/download-artifact@v8
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
         with:
           name: os-adguardhome-ha
           path: release

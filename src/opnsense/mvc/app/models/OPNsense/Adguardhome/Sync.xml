@@ -1,7 +1,7 @@
 <model>
     <mount>//OPNsense/adguardhome/sync</mount>
     <description>AdGuard Home synchronization settings</description>
-    <version>1.1.0</version>
+    <version>1.2.0</version>
     <items>
         <enabled type="BooleanField">
             <default>0</default>
@@ -22,5 +22,21 @@
             <AllowSpaces>N</AllowSpaces>
             <AllowNewlines>N</AllowNewlines>
         </peer_fingerprint>
+        <api_username type="TextField">
+            <MaximumLength>128</MaximumLength>
+            <AllowNewlines>N</AllowNewlines>
+        </api_username>
+        <api_password type="TextField">
+            <MaximumLength>256</MaximumLength>
+            <AllowNewlines>N</AllowNewlines>
+        </api_password>
+        <hot_update type="BooleanField">
+            <default>1</default>
+            <Required>Y</Required>
+        </hot_update>
+        <defer_while_master type="BooleanField">
+            <default>0</default>
+            <Required>Y</Required>
+        </defer_while_master>
     </items>
 </model>

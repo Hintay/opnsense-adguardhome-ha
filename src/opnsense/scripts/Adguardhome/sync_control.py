@@ -15,8 +15,8 @@ def run(*args, timeout=60):
     return subprocess.run(args, capture_output=True, timeout=timeout)
 
 
-def result_of(command):
-    completed = run(*command)
+def result_of(command, timeout=60):
+    completed = run(*command, timeout=timeout)
     if completed.returncode:
         detail = (completed.stderr or completed.stdout).decode(errors='replace').strip()[-500:]
         raise RuntimeError(detail or 'The command failed.')
@@ -31,15 +31,45 @@ def service(action):
     return result_of(('/usr/sbin/service', 'adguardhome_sync', action))
 
 
+def ensure_api_account():
+    """Install or withdraw the managed AdGuard Home service account.
+
+    A node that cannot carry the account must not fail the whole apply, so the
+    outcome is only reported.
+    """
+    try:
+        # Installing the account stops and starts AdGuard Home once.
+        outcome = json.loads(result_of((SYNCD, '--ensure-api-account'), timeout=180))
+    except (OSError, RuntimeError, ValueError, subprocess.TimeoutExpired) as error:
+        return {'api_account': 'failed', 'api_account_message': str(error)}
+    outcome = outcome if isinstance(outcome, dict) else {}
+    return {'api_account': outcome.get('status', 'unchanged')}
+
+
 def apply():
     settings = render()
+    result = {'status': 'ok', 'enabled': settings.get('enabled', False), 'role': settings.get('role')}
+    # Stop the daemon first: installing the managed account restarts AdGuard
+    # Home and must not race with the daemon's start-up push for the lock.
+    service('onestop')
+    # The account is derived from the pairing secret and lives on both nodes,
+    # because both apply configuration through their own API; disabling
+    # synchronization withdraws it again.
+    result.update(ensure_api_account())
     if settings.get('enabled'):
-        service('onerestart')
         if settings.get('role') == 'receiver':
             result_of((SYNCD, '--ensure-certificate'))
-    else:
-        service('onestop')
-    return {'status': 'ok', 'enabled': settings.get('enabled', False), 'role': settings.get('role')}
+        service('onestart')
+    return result
+
+
+def apply_pending():
+    return json.loads(result_of((SYNCD, '--apply-pending')))
+
+
+def ensure_account():
+    """Install the managed account when this node is not CARP master (CARP hook)."""
+    return json.loads(result_of((SYNCD, '--ensure-api-account', '--when-backup'), timeout=180))
 
 
 def status():
@@ -52,10 +82,14 @@ def status():
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('action', choices=('apply', 'start', 'restart', 'stop', 'status', 'sync'))
+    parser.add_argument('action', choices=('apply', 'apply_pending', 'ensure_account', 'start', 'restart', 'stop', 'status', 'sync'))
     args = parser.parse_args()
     if args.action == 'apply':
         result = apply()
+    elif args.action == 'apply_pending':
+        result = apply_pending()
+    elif args.action == 'ensure_account':
+        result = ensure_account()
     elif args.action == 'status':
         result = status()
     elif args.action == 'sync':

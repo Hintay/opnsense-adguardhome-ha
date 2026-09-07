@@ -2,6 +2,8 @@
 #
 # $FreeBSD$
 #
+# PROVIDE: adguardhome
+# REQUIRE: NETWORKING
 # KEYWORD: shutdown
 
 . /etc/rc.subr
@@ -18,7 +20,7 @@ load_rc_config adguardhome
 : ${adguardhome_enable="NO"}
 
 command=/usr/sbin/daemon
-command_args="-f -P ${pidfile} /usr/local/bin/adguardhome -c /usr/local/AdGuardHome/AdGuardHome.yaml -w /usr/local/AdGuardHome --no-check-update -s run &"
+command_args="-f -P ${pidfile} /usr/local/bin/adguardhome -c /usr/local/AdGuardHome/AdGuardHome.yaml -w /usr/local/AdGuardHome --no-check-update -s run"
 required_files="/usr/local/bin/adguardhome"
 required_dirs="/usr/local/AdGuardHome"
 
@@ -30,6 +32,7 @@ adguardhome_status()
              return 0
          else
              echo "${name} is not running."
+             return 1
          fi
 }
 

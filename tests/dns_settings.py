@@ -1,9 +1,14 @@
 #!/usr/local/bin/python3
-"""Verify DNS listener configuration parsing and updates."""
+"""Verify DNS listener configuration parsing, service state and updates."""
 
+import contextlib
 import importlib.util
 import json
+import os
 from pathlib import Path
+import socket
+import subprocess
+import sys
 import tempfile
 
 import yaml
@@ -20,6 +25,103 @@ def load_module():
     return module
 
 
+def dead_pid():
+    child = subprocess.Popen([sys.executable, '-c', 'pass'])
+    child.wait()
+    return child.pid
+
+
+def unused_port():
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as probe:
+        probe.bind(('127.0.0.1', 0))
+        return probe.getsockname()[1]
+
+
+def service_recorder(module, state):
+    """Replace service() with a recorder that maintains the pid file like the daemon does."""
+    def fake_service(action):
+        state['calls'].append(action)
+        if action == 'onestart' and state['starts']:
+            module.PID_PATH.write_text('{}\n'.format(os.getpid()), encoding='utf-8')
+        elif action == 'onestop':
+            module.PID_PATH.unlink(missing_ok=True)
+        return subprocess.CompletedProcess(('/usr/sbin/service', 'adguardhome', action), 0, b'', b'')
+
+    module.service = fake_service
+
+
+def check_is_running(module):
+    module.PID_PATH.unlink(missing_ok=True)
+    assert module.is_running() is False
+    module.PID_PATH.write_text('not-a-pid\n', encoding='utf-8')
+    assert module.is_running() is False
+    module.PID_PATH.write_text('{}\n'.format(dead_pid()), encoding='utf-8')
+    assert module.is_running() is False
+    module.PID_PATH.write_text('{}\n'.format(os.getpid()), encoding='utf-8')
+    assert module.is_running() is True
+    module.PID_PATH.unlink()
+
+
+def check_wait_serving(module, port):
+    assert module.wait_serving(['127.0.0.1'], port, timeout=2) is True
+    assert module.wait_serving(['0.0.0.0'], port, timeout=2) is True
+    assert module.wait_serving(['198.51.100.7', '127.0.0.1'], port, timeout=2) is True
+    assert module.wait_serving(['127.0.0.1'], unused_port(), timeout=0.5) is False
+
+
+def check_reconcile_service(module, state):
+    module.PID_PATH.unlink(missing_ok=True)
+    state['calls'] = []
+    module.reconcile_service(True)
+    assert state['calls'] == ['onestart']
+    assert module.is_running() is True
+    state['calls'] = []
+    module.reconcile_service(True)
+    assert state['calls'] == []
+    module.reconcile_service(False)
+    assert state['calls'] == ['onestop']
+    assert module.is_running() is False
+    state['calls'] = []
+    module.reconcile_service(False)
+    assert state['calls'] == []
+
+
+def check_failed_start(module, state):
+    state['starts'] = False
+    module.PID_PATH.unlink(missing_ok=True)
+    try:
+        module.start_service()
+    except RuntimeError as error:
+        assert 'did not start' in str(error)
+    else:
+        raise RuntimeError('A failed service start was not detected.')
+    state['starts'] = True
+    try:
+        module.start_service(['127.0.0.1'], unused_port())
+    except RuntimeError as error:
+        assert 'did not answer' in str(error)
+    else:
+        raise RuntimeError('A service that did not bind was not detected.')
+
+
+def check_failed_apply(module, state):
+    """A start failure has to restore the backup and report that the restart failed as well."""
+    previous = module.ADGUARD_CONFIG.read_text(encoding='utf-8')
+    model = json.loads(module.MODEL_SETTINGS_PATH.read_text(encoding='utf-8'))
+    model['general']['dns_port'] = str(unused_port())
+    module.MODEL_SETTINGS_PATH.write_text(json.dumps(model), encoding='utf-8')
+    module.PID_PATH.write_text('{}\n'.format(os.getpid()), encoding='utf-8')
+    state['starts'] = False
+    try:
+        module.apply_unlocked()
+    except RuntimeError as error:
+        assert 'could not be restarted either' in str(error)
+    else:
+        raise RuntimeError('A failed configuration update was not reported.')
+    assert module.ADGUARD_CONFIG.read_text(encoding='utf-8') == previous
+    state['starts'] = True
+
+
 def main():
     module = load_module()
     with tempfile.TemporaryDirectory(prefix='adguardhome-dns-settings-') as temporary:
@@ -29,42 +131,55 @@ def main():
         module.ADGUARD_BINARY = directory / 'adguardhome'
         module.BACKUP_CONFIG = directory / 'AdGuardHome.yaml.before-opnsense'
         module.MODEL_SETTINGS_PATH = directory / 'opnsense.json'
-        module.ADGUARD_CONFIG.write_text('dns:\n  bind_hosts:\n    - 192.0.2.1\n  port: 53\n', encoding='utf-8')
-        module.MODEL_SETTINGS_PATH.write_text(json.dumps({
-            'general': {
-                'enabled': True,
-                'bind_hosts': '192.0.2.8,fd00::8',
-                'dns_port': '5353',
-            },
-            'interfaces': [
-                {'name': 'lan', 'device': 'vtnet0', 'description': 'LAN'},
-            ],
-        }), encoding='utf-8')
-        module.ADGUARD_BINARY.write_text('#!/bin/sh\nexit 0\n', encoding='utf-8')
-        module.ADGUARD_BINARY.chmod(0o755)
-        assert module.binary_path() == module.ADGUARD_BINARY
-        module.is_running = lambda: True
-        module.stop_service = lambda: None
-        module.start_service = lambda: None
-        module.check_candidate = lambda _candidate: None
-        assert module.interface_labels() == {'vtnet0': 'LAN'}
-        module.available_addresses = lambda: {'192.0.2.1': '192.0.2.1 (LAN)'}
-        assert module.get_settings() == {
-            'status': 'ok',
-            'bind_hosts': ['192.0.2.1'],
-            'port': 53,
-            'available_hosts': {'192.0.2.1': '192.0.2.1 (LAN)'},
-        }
-        assert module.apply_unlocked() == 'updated'
-        updated = yaml.safe_load(module.ADGUARD_CONFIG.read_text(encoding='utf-8'))
-        assert updated['dns']['bind_hosts'] == ['192.0.2.8', 'fd00::8']
-        assert updated['dns']['port'] == 5353
-        try:
-            module.normalize_hosts(['invalid'])
-        except ValueError:
-            pass
-        else:
-            raise RuntimeError('An invalid DNS listen address was accepted.')
+        module.PID_PATH = directory / 'adguardhome.pid'
+        with contextlib.closing(socket.socket(socket.AF_INET, socket.SOCK_STREAM)) as listener:
+            listener.bind(('127.0.0.1', 0))
+            listener.listen(4)
+            port = listener.getsockname()[1]
+            module.ADGUARD_CONFIG.write_text(
+                'dns:\n  bind_hosts:\n    - 192.0.2.1\n  port: 53\n', encoding='utf-8')
+            module.MODEL_SETTINGS_PATH.write_text(json.dumps({
+                'general': {
+                    'enabled': True,
+                    'bind_hosts': '127.0.0.1,fd00::8',
+                    'dns_port': str(port),
+                },
+                'interfaces': [
+                    {'name': 'lan', 'device': 'vtnet0', 'description': 'LAN'},
+                ],
+            }), encoding='utf-8')
+            module.ADGUARD_BINARY.write_text('#!/bin/sh\nexit 0\n', encoding='utf-8')
+            module.ADGUARD_BINARY.chmod(0o755)
+            assert module.binary_path() == module.ADGUARD_BINARY
+            module.check_candidate = lambda _candidate: None
+            state = {'calls': [], 'starts': True}
+            service_recorder(module, state)
+            # Keep the waiting loops short, the real implementations stay in use.
+            module.wait_until_running = lambda timeout=1: module.is_running()
+            check_is_running(module)
+            check_wait_serving(module, port)
+            check_reconcile_service(module, state)
+            check_failed_start(module, state)
+            assert module.interface_labels() == {'vtnet0': 'LAN'}
+            module.available_addresses = lambda: {'192.0.2.1': '192.0.2.1 (LAN)'}
+            assert module.get_settings() == {
+                'status': 'ok',
+                'bind_hosts': ['192.0.2.1'],
+                'port': 53,
+                'available_hosts': {'192.0.2.1': '192.0.2.1 (LAN)'},
+            }
+            assert module.apply_unlocked() == 'updated'
+            updated = yaml.safe_load(module.ADGUARD_CONFIG.read_text(encoding='utf-8'))
+            assert updated['dns']['bind_hosts'] == ['127.0.0.1', 'fd00::8']
+            assert updated['dns']['port'] == port
+            assert module.apply_unlocked() == 'unchanged'
+            check_failed_apply(module, state)
+            try:
+                module.normalize_hosts(['invalid'])
+            except ValueError:
+                pass
+            else:
+                raise RuntimeError('An invalid DNS listen address was accepted.')
     print('DNS settings test passed')
 
 

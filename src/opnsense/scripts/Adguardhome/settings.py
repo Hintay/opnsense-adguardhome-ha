@@ -48,6 +48,28 @@ def state_sync_addresses():
     return local_address, peer
 
 
+def text_value(value, name, limit, strip=True):
+    """Accept an optional short text setting from the generated model data."""
+    if value is None:
+        return ''
+    if not isinstance(value, str):
+        raise ValueError(name + ' is invalid.')
+    value = value.strip() if strip else value
+    if len(value) > limit:
+        raise ValueError(name + ' is invalid.')
+    return value
+
+
+def boolean_value(value, default):
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str) and value.strip().lower() in ('1', 'true', 'yes', 'on'):
+        return True
+    if isinstance(value, str) and value.strip().lower() in ('0', 'false', 'no', 'off'):
+        return False
+    return default
+
+
 def build_settings():
     configured = model_settings()
     enabled = configured.get('enabled') is True
@@ -75,7 +97,11 @@ def build_settings():
         except ipaddress.AddressValueError as error:
             raise ValueError('The HA configuration synchronization target is invalid.') from error
         if synchronization_target != peer:
-            raise ValueError('The HA configuration synchronization target does not match the state-sync peer.')
+            raise ValueError(
+                'The HA configuration synchronization target does not match the state-sync peer: '
+                'System > High Availability > Settings > Synchronize Config to IP must be the peer\'s '
+                'pfsync address {}, currently {}.'.format(peer, synchronization_target)
+            )
         role = 'source'
     else:
         role = 'receiver'
@@ -83,8 +109,17 @@ def build_settings():
     if not isinstance(peer_fingerprint, str):
         raise ValueError('Peer certificate fingerprint is invalid.')
     peer_fingerprint = peer_fingerprint.lower().replace(':', '')
-    if role == 'source' and (len(peer_fingerprint) != 64 or not re.fullmatch(r'[0-9a-f]{64}', peer_fingerprint)):
+    if peer_fingerprint and not re.fullmatch(r'[0-9a-f]{64}', peer_fingerprint):
         raise ValueError('Peer certificate fingerprint is invalid.')
+    api_username = text_value(configured.get('api_username', ''), 'The AdGuard Home API user name', 128)
+    if ':' in api_username:
+        raise ValueError('The AdGuard Home API user name is invalid.')
+    api_password = text_value(configured.get('api_password', ''), 'The AdGuard Home API password', 256, strip=False)
+    # Configured credentials are a manual override; otherwise the plugin manages
+    # a dedicated administrator derived from the pairing secret.
+    if not (api_username and api_password):
+        api_username = ''
+        api_password = ''
     return {
         'enabled': True,
         'role': role,
@@ -93,6 +128,11 @@ def build_settings():
         'port': port,
         'secret': secret,
         'peer_fingerprint': peer_fingerprint,
+        'api_username': api_username,
+        'api_password': api_password,
+        'api_mode': 'manual' if (api_username and api_password) else 'managed',
+        'hot_update': boolean_value(configured.get('hot_update'), True),
+        'defer_while_master': boolean_value(configured.get('defer_while_master'), False),
     }
 
 

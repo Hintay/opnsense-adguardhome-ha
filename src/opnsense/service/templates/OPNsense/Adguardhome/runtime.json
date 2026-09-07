@@ -9,6 +9,10 @@
         "port": {{ OPNsense.adguardhome.sync.port | default('9443') | tojson }},
         "secret": {{ OPNsense.adguardhome.sync.secret | default('') | tojson }},
         "peer_fingerprint": {{ OPNsense.adguardhome.sync.peer_fingerprint | default('') | tojson }},
+        "api_username": {{ OPNsense.adguardhome.sync.api_username | default('') | tojson }},
+        "api_password": {{ OPNsense.adguardhome.sync.api_password | default('') | tojson }},
+        "hot_update": {{ "false" if helpers.exists('OPNsense.adguardhome.sync.hot_update') and OPNsense.adguardhome.sync.hot_update != '1' else "true" }},
+        "defer_while_master": {{ "true" if helpers.exists('OPNsense.adguardhome.sync.defer_while_master') and OPNsense.adguardhome.sync.defer_while_master == '1' else "false" }},
         "synchronization_target": {% if helpers.exists('hasync.synchronizetoip') %}{{ helpers.getNodeByTag('hasync.synchronizetoip') | default('') | tojson }}{% else %}""{% endif %}
     },
     "interfaces": [

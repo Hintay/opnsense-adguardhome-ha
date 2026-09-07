@@ -3,14 +3,56 @@
         const text = {{ t|json_encode }};
         const endpoint = '/api/adguardhome/sync_service/';
         const service = 'adguardhome_sync';
+        let runtime = {};
 
         function display(value) {
             return value === undefined || value === null || value === '' ? '-' : String(value);
         }
 
+        function resultText(value) {
+            if (value === undefined || value === null || value === '') {
+                return '-';
+            }
+            return text['result_' + value] || String(value);
+        }
+
+        function modeText() {
+            if (!runtime.api_configured || !$('#sync\\.hot_update').is(':checked')) {
+                return text.mode_file;
+            }
+            const state = runtime.api_account_state || '';
+            if (state === 'missing' || state === 'stale') {
+                // The account is written on the next apply, so until then the
+                // receiver replaces the file and restarts AdGuard Home.
+                return text.mode_file_pending;
+            }
+            if (runtime.api_mode === 'manual') {
+                return text.mode_hot_manual;
+            }
+            if (state === 'none') {
+                return text.mode_hot_open;
+            }
+            return state === 'present' ? text.mode_hot_managed : text.mode_hot;
+        }
+
+        function describeEvent(event, extra) {
+            // Events are {at: epoch seconds, keys: [...]} objects written by the daemon.
+            if (!event || !event.at) {
+                return text.never;
+            }
+            const when = new Date(event.at * 1000).toLocaleString();
+            const keys = (event.keys || []).slice(0, 8).join(', ') + ((event.keys || []).length > 8 ? ' …' : '');
+            const detail = extra ? extra(event) : '';
+            return when + (keys ? ' — ' + keys : '') + (detail ? ' (' + detail + ')' : '');
+        }
+
+        function updateMode() {
+            $('#runtime\\.mode').text(modeText() + (runtime.api_message ? ' — ' + runtime.api_message : ''));
+        }
+
         function updateRuntime() {
             ajaxGet(endpoint + 'status', {}, function(data) {
-                const runtime = data.runtime || {};
+                runtime = data.runtime || {};
                 $('#runtime\\.role').text(
                     runtime.role === 'source' ? text.source :
                     (runtime.role === 'receiver' ? text.receiver : '-')
@@ -19,12 +61,32 @@
                 $('#runtime\\.peer_address').text(display(runtime.peer_address));
                 $('#runtime\\.port').text(display(runtime.port));
                 $('#runtime\\.certificate').text(display(runtime.certificate));
+                $('#runtime\\.learned_fingerprint').text(display(runtime.learned_fingerprint));
+                let lastResult = resultText(runtime.last_result);
+                if (runtime.last_error) {
+                    lastResult = lastResult + ' (' + runtime.last_error + ')';
+                }
+                $('#runtime\\.last_result').text(lastResult);
+                $('#runtime\\.pending').text(runtime.pending_config ? text.pending_yes : text.pending_no);
+                $('#runtime\\.adopted').text(describeEvent(runtime.last_adopted, null));
+                $('#runtime\\.conflict').text(describeEvent(runtime.last_conflict, function(event) {
+                    return event.winner === 'receiver' ? text.conflict_receiver_won : text.conflict_source_won;
+                }));
+                $('#runtime\\.overwritten').text(describeEvent(runtime.last_overwritten, function(event) {
+                    return event.backup ? text.backup_at + ' ' + event.backup : '';
+                }));
+                updateMode();
                 const isSource = runtime.role === 'source';
                 $('#row_sync\\.peer_fingerprint').toggle(isSource);
                 $('#syncAct').toggle(isSource);
+                $('#applyPendingAct').toggle(!!runtime.pending_config);
                 $('#sync\\.secret').attr(
                     'placeholder',
                     runtime.secret_configured ? text.secret_configured : ''
+                );
+                $('#sync\\.api_password').attr(
+                    'placeholder',
+                    runtime.api_mode === 'manual' ? text.api_password_configured : ''
                 );
             });
             updateServiceControlUI(service);
@@ -35,17 +97,24 @@
             $('.selectpicker').selectpicker('refresh');
             $('#row_sync\\.peer_fingerprint').hide();
             $('#syncAct').hide();
+            $('#applyPendingAct').hide();
             updateRuntime();
         });
 
+        $('#sync\\.hot_update').change(function() {
+            updateMode();
+        });
+
         $('#generateSecretAct').click(function() {
-            const bytes = new Uint8Array(36);
-            window.crypto.getRandomValues(bytes);
-            const secret = btoa(String.fromCharCode.apply(null, bytes))
-                .replace(/\+/g, '-')
-                .replace(/\//g, '_')
-                .replace(/=+$/, '');
-            $('#sync\\.secret').val(secret).trigger('change');
+            // The secret is generated by the backend CSPRNG and shown once until saved.
+            ajaxCall('/api/adguardhome/sync/generate_secret', {}, function(data) {
+                if (data && data.status === 'ok' && data.secret) {
+                    $('#sync\\.secret').val(data.secret).trigger('change');
+                } else {
+                    BootstrapDialog.alert({type: BootstrapDialog.TYPE_DANGER, title: text.generate_secret_error,
+                                           message: (data && data.message) ? data.message : '-'});
+                }
+            });
         });
 
         $('#reconfigureAct').SimpleActionButton({
@@ -64,6 +133,10 @@
         });
 
         $('#syncAct').SimpleActionButton({
+            onAction: updateRuntime
+        });
+
+        $('#applyPendingAct').SimpleActionButton({
             onAction: updateRuntime
         });
     });
@@ -97,6 +170,12 @@
             data-endpoint="/api/adguardhome/sync_service/sync"
             data-label="{{ t['sync_now'] }}"
             data-error-title="{{ t['sync_error'] }}"
+            type="button">
+        </button>
+        <button class="btn btn-default __mr" id="applyPendingAct"
+            data-endpoint="/api/adguardhome/sync_service/apply_pending"
+            data-label="{{ t['apply_pending'] }}"
+            data-error-title="{{ t['apply_pending_error'] }}"
             type="button">
         </button>
         <a class="btn btn-default" href="/ui/diagnostics/log/core/adguardhome-sync">

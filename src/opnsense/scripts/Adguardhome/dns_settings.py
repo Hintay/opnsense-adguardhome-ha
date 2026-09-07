@@ -9,6 +9,7 @@ import json
 import os
 from pathlib import Path
 import shutil
+import socket
 import stat
 import subprocess
 import sys
@@ -16,6 +17,12 @@ import tempfile
 import time
 
 import yaml
+
+SCRIPT_DIRECTORY = str(Path(__file__).resolve().parent)
+if SCRIPT_DIRECTORY not in sys.path:
+    sys.path.insert(0, SCRIPT_DIRECTORY)
+
+import agh_api  # noqa: E402  sibling module in the plugin script directory
 
 
 MODEL_SETTINGS_PATH = Path('/usr/local/etc/adguardhome-ha/opnsense.json')
@@ -25,6 +32,8 @@ ADGUARD_BINARY = Path('/usr/local/bin/adguardhome')
 BACKUP_CONFIG = ADGUARD_HOME / 'AdGuardHome.yaml.before-opnsense'
 SYNC_SETTINGS = Path('/usr/local/etc/adguardhome-sync.json')
 LOCK_PATH = Path('/var/run/adguardhome-sync.lock')
+PID_PATH = Path('/var/run/adguardhome.pid')
+PROBE_HOSTS = {'0.0.0.0': '127.0.0.1', '::': '::1'}
 
 
 def run(*args, timeout=45):
@@ -94,12 +103,14 @@ def desired_settings():
     if not isinstance(hosts_value, str):
         raise ValueError('The generated DNS listen addresses are invalid.')
     hosts = [item for item in hosts_value.split(',') if item.strip()]
+    current = None
     if not hosts:
         _, current = read_yaml()
         hosts = current['bind_hosts']
     port_text = configured.get('dns_port', '')
     if not port_text:
-        _, current = read_yaml()
+        if current is None:
+            _, current = read_yaml()
         port_text = current['port']
     return {
         'enabled': enabled,
@@ -194,8 +205,22 @@ def service(action):
 
 
 def is_running():
-    result = service('onestatus')
-    return result.returncode == 0
+    # Do not depend on the rc.d exit code, read the pid file and probe the process.
+    try:
+        pid = int(PID_PATH.read_text(encoding='utf-8').strip())
+    except (OSError, UnicodeError, ValueError):
+        return False
+    if pid <= 0:
+        return False
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
+    except OSError:
+        return False
+    return True
 
 
 def wait_until_running(timeout=10):
@@ -207,6 +232,37 @@ def wait_until_running(timeout=10):
     return False
 
 
+def probe_listener(host, port, timeout=1):
+    target = PROBE_HOSTS.get(host, host)
+    try:
+        with socket.create_connection((target, port), timeout=timeout):
+            return True
+    except OSError:
+        return False
+
+
+def serving(hosts, port):
+    # CARP virtual addresses cannot be probed with a connection from the backup
+    # node, so prefer the local socket table and connect only without sockstat.
+    listeners = agh_api.local_listeners(port)
+    if listeners is None:
+        return any(probe_listener(host, port) for host in hosts)
+    return any(agh_api.host_served(host, listeners) for host in hosts)
+
+
+def wait_serving(hosts, port, timeout=15):
+    # A running process is not enough, the DNS listeners have to be bound.
+    if not hosts:
+        return True
+    deadline = time.monotonic() + timeout
+    while True:
+        if serving(hosts, port):
+            return True
+        if time.monotonic() >= deadline:
+            return False
+        time.sleep(0.25)
+
+
 def stop_service():
     result = service('onestop')
     if result.returncode and is_running():
@@ -214,11 +270,13 @@ def stop_service():
         raise RuntimeError('Unable to stop AdGuard Home: ' + detail)
 
 
-def start_service():
+def start_service(hosts=None, port=None):
     result = service('onestart')
     if result.returncode or not wait_until_running():
         detail = (result.stderr or result.stdout).decode(errors='replace').strip()[-300:]
         raise RuntimeError('AdGuard Home did not start: ' + detail)
+    if hosts and port and not wait_serving(hosts, port):
+        raise RuntimeError('AdGuard Home started but did not answer on the configured DNS listeners.')
 
 
 def restore(configuration_was_running):
@@ -226,14 +284,28 @@ def restore(configuration_was_running):
         service('onestop')
     shutil.copy2(BACKUP_CONFIG, ADGUARD_CONFIG)
     os.chmod(ADGUARD_CONFIG, 0o600)
-    if configuration_was_running:
-        start_service()
+    if not configuration_was_running:
+        return
+    try:
+        _, previous = read_yaml()
+    except ValueError:
+        previous = None
+    try:
+        if previous is None:
+            start_service()
+        else:
+            start_service(previous['bind_hosts'], previous['port'])
+    except (RuntimeError, subprocess.TimeoutExpired) as error:
+        raise RuntimeError(
+            'AdGuard Home did not start and the previous configuration could not be restarted either: '
+            + str(error)
+        ) from error
 
 
-def reconcile_service(enabled):
+def reconcile_service(enabled, hosts=None, port=None):
     running = is_running()
     if enabled and not running:
-        start_service()
+        start_service(hosts, port)
     elif not enabled and running:
         stop_service()
 
@@ -243,7 +315,7 @@ def apply_unlocked():
     desired = desired_settings()
     changed = current['bind_hosts'] != desired['bind_hosts'] or current['port'] != desired['port']
     if not changed:
-        reconcile_service(desired['enabled'])
+        reconcile_service(desired['enabled'], desired['bind_hosts'], desired['port'])
         return 'unchanged'
 
     candidate_yaml = copy.deepcopy(current_yaml)
@@ -262,7 +334,7 @@ def apply_unlocked():
         candidate.replace(ADGUARD_CONFIG)
         candidate = None
         if desired['enabled']:
-            start_service()
+            start_service(desired['bind_hosts'], desired['port'])
         return 'updated'
     except (OSError, RuntimeError, subprocess.TimeoutExpired):
         if backup_created:
