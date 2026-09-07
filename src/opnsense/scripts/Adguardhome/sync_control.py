@@ -31,6 +31,14 @@ def service(action):
     return result_of(('/usr/sbin/service', 'adguardhome_sync', action))
 
 
+def stop_service():
+    """Stop the daemon, tolerating one that is not running (e.g. right after a package upgrade)."""
+    completed = run('/usr/sbin/service', 'adguardhome_sync', 'onestop')
+    if completed.returncode and run('/usr/sbin/service', 'adguardhome_sync', 'onestatus').returncode == 0:
+        detail = (completed.stderr or completed.stdout).decode(errors='replace').strip()[-300:]
+        raise RuntimeError(detail or 'Unable to stop the synchronization service.')
+
+
 def ensure_api_account():
     """Install or withdraw the managed AdGuard Home service account.
 
@@ -51,7 +59,7 @@ def apply():
     result = {'status': 'ok', 'enabled': settings.get('enabled', False), 'role': settings.get('role')}
     # Stop the daemon first: installing the managed account restarts AdGuard
     # Home and must not race with the daemon's start-up push for the lock.
-    service('onestop')
+    stop_service()
     # The account is derived from the pairing secret and lives on both nodes,
     # because both apply configuration through their own API; disabling
     # synchronization withdraws it again.

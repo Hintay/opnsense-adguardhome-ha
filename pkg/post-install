@@ -34,5 +34,9 @@ rm -f /tmp/opnsense_menu_cache.xml /tmp/opnsense_acl_cache.json
 /usr/sbin/service configd restart
 /usr/local/sbin/configctl syslog restart
 /usr/local/sbin/configctl template reload OPNsense/Adguardhome >/dev/null 2>&1 || true
+# The previous package's pre-deinstall stopped the synchronization daemon; bring it back when it is enabled.
+if grep -q 'adguardhome_sync_enable="YES"' /etc/rc.conf.d/adguardhome_sync 2>/dev/null; then
+    /usr/sbin/service adguardhome_sync onestart >/dev/null 2>&1 || true
+fi
 /usr/local/sbin/configctl webgui restart >/dev/null 2>&1 || true
 exit 0
