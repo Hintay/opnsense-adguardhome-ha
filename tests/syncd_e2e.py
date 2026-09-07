@@ -722,6 +722,9 @@ def deferred_account_test(syncd, root):
     original_install = syncd.install_document
     syncd.install_document = lambda document: installed.append(document)
     original_master = syncd.carp_master
+    # The gating logic is independent of bcrypt; do not require PHP here.
+    original_hash = syncd.api_account.derive_hash
+    syncd.api_account.derive_hash = lambda secret: '$2y$10$' + ('h' * 53)
     try:
         syncd.carp_master = lambda document: True
         outcome = syncd.ensure_api_account(settings, only_when_backup=True)
@@ -735,6 +738,7 @@ def deferred_account_test(syncd, root):
     finally:
         syncd.install_document = original_install
         syncd.carp_master = original_master
+        syncd.api_account.derive_hash = original_hash
 
 
 def main():

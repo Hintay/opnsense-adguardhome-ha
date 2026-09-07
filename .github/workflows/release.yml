@@ -64,7 +64,7 @@ jobs:
           usesh: true
           envs: RELEASE_TAG
           prepare: |
-            pkg install -y python313 libyaml
+            pkg install -y python313 libyaml php85 libxml2
             pkg add -A https://pkg.opnsense.org/FreeBSD:15:amd64/26.7/latest/Latest/py313-pyyaml.pkg
           run: |
             PYTHON=/usr/local/bin/python3.13
