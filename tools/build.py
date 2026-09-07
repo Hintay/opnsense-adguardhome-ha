@@ -129,7 +129,6 @@ def main():
             'abi': output(PKG, 'config', 'ABI'),
             'licenses': ['BSD2CLAUSE'],
             'licenselogic': 'single',
-            'conflicts': ['os-adguardhome-maxit-*', 'os-adguardhome-[0-9]*'],
             'deps': dependencies,
             'files': collect_files(prefix, stage),
             'scripts': scripts,

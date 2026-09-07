@@ -63,6 +63,11 @@ def main():
         package = output / 'os-adguardhome-ha-1.0.pkg'
         if not package.is_file():
             raise RuntimeError('The plugin package was not created.')
+        manifest = json.loads(subprocess.check_output(['tar', '-xOf', str(package), '+COMPACT_MANIFEST'], text=True))
+        if manifest.get('www') != 'https://github.com/Hintay/opnsense-adguardhome-ha':
+            raise RuntimeError('The plugin package has an unexpected project URL.')
+        if 'conflicts' in manifest:
+            raise RuntimeError('The plugin package contains unsupported conflict metadata.')
         contents = subprocess.check_output([PKG, 'info', '-lF', str(package)], text=True)
         if '/usr/local/bin/adguardhome' in contents or '/usr/local/AdGuardHome/AdGuardHome' in contents:
             raise RuntimeError('The plugin package contains an AdGuard Home executable.')
