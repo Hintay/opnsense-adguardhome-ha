@@ -495,7 +495,17 @@ def test_api_errors():
         raise RuntimeError('An unreachable instance was accepted.')
 
 
+def test_local_time_zone_placeholder():
+    source = {'filtering': {'blocked_services': {'schedule': {'time_zone': 'Local'}, 'ids': ['youtube']}}}
+    current = {'filtering': {'blocked_services': {'schedule': {'time_zone': 'UTC'}, 'ids': ['youtube']}}}
+    difference, plan = agh_api.classify(source, current)
+    assert not difference, difference
+    difference, plan = agh_api.classify(current, source)
+    assert list(difference) == ['filtering.blocked_services.schedule.time_zone'], difference
+
+
 def main():
+    test_local_time_zone_placeholder()
     test_classification()
     test_conversions()
     test_apply_and_convergence()

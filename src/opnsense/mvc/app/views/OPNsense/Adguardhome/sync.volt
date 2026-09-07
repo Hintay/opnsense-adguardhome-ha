@@ -84,9 +84,21 @@
                     'placeholder',
                     runtime.secret_configured ? text.secret_configured : ''
                 );
+                // Show what is in effect while the fields are empty, like the pairing secret does.
+                let accountHint = '';
+                if (runtime.api_mode === 'manual') {
+                    accountHint = text.api_manual_in_use;
+                } else if (runtime.api_account_state === 'present') {
+                    accountHint = text.api_managed_present;
+                } else if (runtime.api_account_state === 'none') {
+                    accountHint = text.api_managed_none;
+                } else if (runtime.api_account_state === 'missing' || runtime.api_account_state === 'stale') {
+                    accountHint = text.api_managed_pending;
+                }
+                $('#sync\\.api_username').attr('placeholder', accountHint);
                 $('#sync\\.api_password').attr(
                     'placeholder',
-                    runtime.api_mode === 'manual' ? text.api_password_configured : ''
+                    runtime.api_mode === 'manual' ? text.api_password_configured : accountHint
                 );
             });
             updateServiceControlUI(service);

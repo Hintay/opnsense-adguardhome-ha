@@ -168,7 +168,7 @@ def fixture(agh_api, current, list_base, upstream_file):
         'statistics.ignored': ['stats.invalid'],
         'user_rules': ['||contract.example^', '@@||allowed.example^'],
         'filtering.rewrites': [{'domain': 'contract.lan', 'answer': '192.0.2.1'}],
-        'filtering.blocked_services': {'schedule': {'time_zone': 'Local'}, 'ids': ['tiktok']},
+        'filtering.blocked_services': {'schedule': {'time_zone': 'Europe/Berlin'}, 'ids': ['tiktok']},
         'filters': [{'enabled': True, 'url': list_base + '/block.txt', 'name': 'contract block'}],
         'whitelist_filters': [{'enabled': True, 'url': list_base + '/allow.txt', 'name': 'contract allow'}],
     }

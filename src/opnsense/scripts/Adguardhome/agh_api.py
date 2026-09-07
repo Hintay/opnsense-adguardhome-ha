@@ -242,6 +242,11 @@ def strip_generated(configuration):
     for entry in (result.get('filtering') or {}).get('rewrites') or []:
         if isinstance(entry, dict):
             entry.setdefault('enabled', True)
+    # "Local" stands for the host time zone and AdGuard Home may write the
+    # resolved zone name instead; the placeholder never counts as a difference.
+    schedule = ((result.get('filtering') or {}).get('blocked_services') or {}).get('schedule')
+    if isinstance(schedule, dict) and schedule.get('time_zone') == 'Local':
+        schedule.pop('time_zone', None)
     for path in DURATION_KEYS:
         value = lookup(result, path)
         if value is not MISSING and value is not None:
