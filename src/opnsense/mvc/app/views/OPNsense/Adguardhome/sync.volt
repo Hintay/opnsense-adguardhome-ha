@@ -60,8 +60,20 @@
                 $('#runtime\\.local_address').text(display(runtime.local_address));
                 $('#runtime\\.peer_address').text(display(runtime.peer_address));
                 $('#runtime\\.port').text(display(runtime.port));
-                $('#runtime\\.certificate').text(display(runtime.certificate));
-                $('#runtime\\.learned_fingerprint').text(display(runtime.learned_fingerprint));
+                // One row for the certificate this link is pinned to, annotated with where it came from.
+                let certificateText = display(runtime.certificate);
+                if (runtime.role === 'receiver') {
+                    certificateText += ' (' + text.fingerprint_own + ')';
+                } else if (runtime.role === 'source') {
+                    if (runtime.fingerprint_source === 'configured') {
+                        certificateText += ' (' + text.fingerprint_configured + ')';
+                    } else if (runtime.fingerprint_source === 'learned') {
+                        certificateText += ' (' + text.fingerprint_learned + ')';
+                    } else {
+                        certificateText = text.fingerprint_pending;
+                    }
+                }
+                $('#runtime\\.certificate').text(certificateText);
                 let lastResult = resultText(runtime.last_result);
                 if (runtime.last_error) {
                     lastResult = lastResult + ' (' + runtime.last_error + ')';

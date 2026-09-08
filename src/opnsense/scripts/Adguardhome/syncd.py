@@ -1348,6 +1348,10 @@ def status():
         'enabled': settings.get('enabled', False),
         'pending_config': PENDING_CONFIG.is_file(),
         'learned_fingerprint': state.get('learned_fingerprint') or None,
+        # 'configured' when the operator pinned the peer certificate by hand (learning is then never used),
+        # 'learned' when the fingerprint came from the authenticated discovery, null otherwise.
+        'fingerprint_source': ('configured' if settings.get('peer_fingerprint')
+                               else 'learned' if state.get('learned_fingerprint') else None),
         'api_configured': api_configured(settings),
         'api_message': None,
         'api_mode': api_mode(settings),

@@ -26,12 +26,6 @@
         <style>text-monospace</style>
     </field>
     <field>
-        <id>runtime.learned_fingerprint</id>
-        <label>Learned peer fingerprint</label>
-        <type>info</type>
-        <style>text-monospace</style>
-    </field>
-    <field>
         <id>runtime.mode</id>
         <label>Update mode</label>
         <type>info</type>

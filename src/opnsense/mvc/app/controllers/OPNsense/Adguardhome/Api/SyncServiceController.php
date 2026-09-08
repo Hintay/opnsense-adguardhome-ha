@@ -37,6 +37,7 @@ class SyncServiceController extends ApiControllerBase
                 'secret_configured' => !empty($result['secret_configured']),
                 'pending_config' => !empty($result['pending_config']),
                 'learned_fingerprint' => $result['learned_fingerprint'] ?? '',
+                'fingerprint_source' => $result['fingerprint_source'] ?? '',
                 'api_configured' => !empty($result['api_configured']),
                 'api_message' => $result['api_message'] ?? '',
                 'base_present' => !empty($result['base_present']),
